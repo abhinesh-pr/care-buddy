@@ -1,4 +1,4 @@
-package com.medic.carebuddy
+package com.medico.carebud
 
 import io.flutter.embedding.android.FlutterActivity
 

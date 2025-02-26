@@ -1,4 +1,4 @@
-# carebuddy
+# carebud
 
 A new Flutter project.
 

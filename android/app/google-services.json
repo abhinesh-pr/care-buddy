@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "69617552323",
+    "project_id": "care-buddy-e3917",
+    "storage_bucket": "care-buddy-e3917.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:69617552323:android:20572fe48d46cfb2af4b76",
+        "android_client_info": {
+          "package_name": "com.medico.carebud"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAG9-bGHagWqJ3dxMfHn6_7SHadOzQeo_g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

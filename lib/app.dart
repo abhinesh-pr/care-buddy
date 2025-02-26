@@ -1,6 +1,6 @@
-import 'package:carebuddy/routes/router.dart';
-import 'package:carebuddy/routes/routes.dart';
-import 'package:carebuddy/utils/themes.dart';
+import 'package:carebud/routes/router.dart';
+import 'package:carebud/routes/routes.dart';
+import 'package:carebud/utils/themes.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';

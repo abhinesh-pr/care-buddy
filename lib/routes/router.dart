@@ -1,4 +1,4 @@
-import 'package:carebuddy/views/admin/caretaker.dart';
+import 'package:carebud/views/admin/caretaker.dart';
 import 'package:get/get.dart';
 import '../views/admin/admi_nav_bar.dart';
 import '../views/admin/admin_dashboard.dart';

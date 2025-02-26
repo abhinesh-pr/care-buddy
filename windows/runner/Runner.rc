@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.medic" "\0"
-            VALUE "FileDescription", "carebuddy" "\0"
+            VALUE "CompanyName", "com.medico" "\0"
+            VALUE "FileDescription", "carebud" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "carebuddy" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2025 com.medic. All rights reserved." "\0"
-            VALUE "OriginalFilename", "carebuddy.exe" "\0"
-            VALUE "ProductName", "carebuddy" "\0"
+            VALUE "InternalName", "carebud" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2025 com.medico. All rights reserved." "\0"
+            VALUE "OriginalFilename", "carebud.exe" "\0"
+            VALUE "ProductName", "carebud" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

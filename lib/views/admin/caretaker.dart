@@ -1,9 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 class AdminCareTaker extends StatefulWidget {
-  final List<Map<String, dynamic>>? initialPeople;
-
-  const AdminCareTaker({super.key, this.initialPeople});
+  const AdminCareTaker({super.key});
 
   @override
   _AdminCareTaker createState() => _AdminCareTaker();
@@ -13,43 +12,51 @@ class _AdminCareTaker extends State<AdminCareTaker> {
   Map<String, int> caretakerData = {};
   List<MapEntry<String, int>> filteredCaretakers = [];
   TextEditingController searchController = TextEditingController();
+  bool isLoading = true; // To track loading state
 
   @override
   void initState() {
     super.initState();
-    _calculateCaretakerPatients();
-    filteredCaretakers = caretakerData.entries.toList();
+    _fetchCaretakersFromFirestore();
   }
 
-  void _calculateCaretakerPatients() {
-    List<Map<String, dynamic>> people = [
-      {"Name": "John Doe", "Caretaker": "Alice"},
-      {"Name": "Mary Smith", "Caretaker": "Emma"},
-      {"Name": "Robert Brown", "Caretaker": "Emma"},
-      {"Name": "Emily Davis", "Caretaker": "Hannah"},
-      {"Name": "William Johnson", "Caretaker": "Emma"},
-      {"Name": "Sophia Wilson", "Caretaker": "Hannah"},
-      {"Name": "Michael Lee", "Caretaker": "Grace"},
-      {"Name": "Olivia Martin", "Caretaker": "Hannah"},
-      {"Name": "Daniel Thomas", "Caretaker": "Emma"},
-    ];
+  Future<void> _fetchCaretakersFromFirestore() async {
+    try {
+      QuerySnapshot caretakerSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .where('userType', isEqualTo: 'Care Taker')
+          .get();
 
-    if (widget.initialPeople != null) {
-      people.addAll(widget.initialPeople!);
+      Map<String, int> caretakerCount = {};
+
+      for (var caretakerDoc in caretakerSnapshot.docs) {
+        String caretakerId = caretakerDoc.id;
+        String caretakerName = caretakerDoc['name'] ?? 'Unknown';
+
+        // Get the number of patients under this caretaker
+        QuerySnapshot patientSnapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(caretakerId)
+            .collection('patients')
+            .get();
+
+        int patientCount = patientSnapshot.docs.length;
+        caretakerCount[caretakerName] = patientCount;
+      }
+
+      setState(() {
+        caretakerData = caretakerCount;
+        filteredCaretakers = caretakerData.entries.toList();
+        isLoading = false; // Data loaded
+      });
+    } catch (e) {
+      print("Error fetching caretakers: $e");
+      setState(() {
+        isLoading = false; // Stop loading even if there's an error
+      });
     }
-
-    Map<String, int> caretakerCount = {};
-
-    for (var person in people) {
-      String caretaker = person["Caretaker"];
-      caretakerCount[caretaker] = (caretakerCount[caretaker] ?? 0) + 1;
-    }
-
-    setState(() {
-      caretakerData = caretakerCount;
-      filteredCaretakers = caretakerData.entries.toList();
-    });
   }
+
 
   void updateSearch(String query) {
     setState(() {
@@ -62,7 +69,6 @@ class _AdminCareTaker extends State<AdminCareTaker> {
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
       backgroundColor: isDarkMode ? Colors.black : Colors.white,
       body: SafeArea(
@@ -87,7 +93,16 @@ class _AdminCareTaker extends State<AdminCareTaker> {
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 10),
-                child: GridView.builder(
+                child: isLoading
+                    ? const Center(child: CircularProgressIndicator()) // Show loader while fetching data
+                    : caretakerData.isEmpty
+                    ? const Center(
+                  child: Text(
+                    "No Caretakers",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                )
+                    : GridView.builder(
                   padding: const EdgeInsets.all(10),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
@@ -117,35 +132,126 @@ class CaretakerCard extends StatelessWidget {
 
   const CaretakerCard({super.key, required this.caretaker, required this.count});
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Color(0xFFbde0fe),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            spreadRadius: 7,
-            offset: const Offset(2, 4),
+  Future<void> _fetchCaretakerDetails(BuildContext context) async {
+    try {
+      QuerySnapshot querySnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .where('userType', isEqualTo: 'Care Taker')
+          .where('id', isEqualTo: caretaker) // Fetch by caretakerId
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        Map<String, dynamic> caretakerData = querySnapshot.docs.first.data() as Map<String, dynamic>;
+        _showCaretakerDetails(context, caretakerData);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Caretaker details not found")),
+        );
+      }
+    } catch (e) {
+      print("Error fetching caretaker details: $e");
+    }
+  }
+
+
+  void _showCaretakerDetails(BuildContext context, Map<String, dynamic> caretakerData) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      backgroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.black : Colors.white,
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Text(
+                  'Caretaker Details',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              _infoRow('Name', caretakerData['name']),
+              _infoRow('Age', caretakerData['age'].toString()),
+              _infoRow('Contact', caretakerData['contact']),
+              _infoRow('Address', caretakerData['address']),
+              _infoRow('Email', caretakerData['email']),
+              const SizedBox(height: 20),
+              Align(
+                alignment: Alignment.center,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Close'),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _infoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        children: [
+          Text(
+            '$label: ',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 16),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(15),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            caretaker,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            "Patients: $count",
-            style: const TextStyle(fontSize: 16),
-          ),
-        ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => _fetchCaretakerDetails(context),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFFbde0fe),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              spreadRadius: 7,
+              offset: const Offset(2, 4),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(15),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              caretaker,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              "Patients: $count",
+              style: const TextStyle(fontSize: 16),
+            ),
+          ],
+        ),
       ),
     );
   }

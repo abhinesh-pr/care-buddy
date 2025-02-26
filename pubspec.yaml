@@ -1,4 +1,4 @@
-name: carebuddy
+name: carebud
 description: "A new Flutter project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -30,15 +30,16 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
+  firebase_core: ^3.10.1
+  firebase_auth: ^5.4.1
+  cloud_firestore: ^5.6.2
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   get: ^4.7.2
+  permission_handler: ^11.4.0
   flutter_screenutil: ^5.9.3
   lucide_icons: ^0.257.0
-  firebase_core: ^3.12.0
-  permission_handler: ^11.4.0
   stylish_bottom_bar: ^1.1.0
   dropdown_search: ^6.0.2
 

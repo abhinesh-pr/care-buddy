@@ -1,7 +1,11 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:dropdown_search/dropdown_search.dart';
+import 'package:get/get.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'admin_dashboard.dart';
+
+import '../../modals/admin/add_user_modal.dart';
+import 'admi_nav_bar.dart';
 
 class AddUser extends StatefulWidget {
   @override
@@ -15,14 +19,137 @@ class _AddUser extends State<AddUser> {
   final TextEditingController _ageController = TextEditingController();
   final TextEditingController _contactController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _conditionController = TextEditingController();
   final TextEditingController _caretakerController = TextEditingController();
-  List<Map<String, String>> _medicines = [];
+  final TextEditingController _caretakerIdController = TextEditingController();
+  final TextEditingController _adminIdController = TextEditingController();
+  List<Medicine> _medicines = [];
+
+  Future<bool> _isIdUnique(String field, String id) async {
+    if (id.isEmpty) return false;
+
+    var querySnapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .where(field, isEqualTo: id)
+        .get();
+
+    return querySnapshot.docs.isEmpty; // Returns true if ID is unique
+  }
+
+  Future<void> _saveUserToFirestore() async {
+    if (!_formKey.currentState!.validate() || _userType == null) return;
+
+    // Generate a unique user ID for general users
+    String userId = FirebaseFirestore.instance.collection('users').doc().id;
+
+    if (_userType == "Care Taker") {
+      if (_caretakerIdController.text.isEmpty) {
+        Get.snackbar("Error", "Caretaker ID is required!",
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.red,
+            colorText: Colors.white);
+        return;
+      }
+      userId = _caretakerIdController.text;
+
+      // Check if Caretaker ID already exists
+      DocumentSnapshot caretakerDoc =
+      await FirebaseFirestore.instance.collection('users').doc(userId).get();
+
+      if (caretakerDoc.exists) {
+        Get.snackbar("Error", "Caretaker ID already exists! Choose a different ID.",
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.red,
+            colorText: Colors.white);
+        return;
+      }
+    }
+
+    if (_userType == "Patient") {
+      if (_caretakerIdController.text.isEmpty) {
+        Get.snackbar("Error", "Caretaker ID is required for Patients!",
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.red,
+            colorText: Colors.white);
+        return;
+      }
+
+      String caretakerId = _caretakerIdController.text;
+      DocumentSnapshot caretakerDoc =
+      await FirebaseFirestore.instance.collection('users').doc(caretakerId).get();
+
+      if (!caretakerDoc.exists) {
+        Get.snackbar("Error", "Caretaker ID not found! Please enter a valid Caretaker ID.",
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.red,
+            colorText: Colors.white);
+        return;
+      }
+
+      // Retrieve caretaker's name
+      String caretakerName = caretakerDoc.get('name') ?? 'Unknown Caretaker';
+
+      // Generate a unique patient ID automatically
+      String patientId = FirebaseFirestore.instance.collection('users').doc().id;
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(caretakerId)
+          .collection('patients')
+          .doc(patientId)
+          .set({
+        'id': patientId,
+        'name': _nameController.text,
+        'age': int.parse(_ageController.text),
+        'contact': _contactController.text,
+        'address': _addressController.text,
+        'condition': _conditionController.text,
+        'caretaker': caretakerId,
+        'caretakerName': caretakerName, // Store Caretaker Name
+        'medicines': _medicines.map((m) => {'name': m.name, 'time': m.time}).toList(),
+        'createdAt': Timestamp.now(),
+        'updatedAt': Timestamp.now(),
+      });
+
+      Get.snackbar("Success", "Patient added successfully under Caretaker!",
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.green,
+          colorText: Colors.white);
+
+      AdminNavBar.adminNavKey.currentState?.onTabTapped(0);
+      return;
+    }
+
+    // Default case: Store general users under /users
+    UserModel newUser = UserModel(
+      id: userId,
+      name: _nameController.text,
+      age: int.parse(_ageController.text),
+      contact: _contactController.text,
+      address: _addressController.text,
+      email: (_userType == "Care Taker" || _userType == "Admin") ? _emailController.text : null,
+      userType: _userType!,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    );
+
+    await FirebaseFirestore.instance.collection('users').doc(userId).set(newUser.toMap());
+
+    Get.snackbar("Success", "User added successfully!",
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.green,
+        colorText: Colors.white);
+
+    AdminNavBar.adminNavKey.currentState?.onTabTapped(0);
+  }
+
+
+
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: null,
       body: SingleChildScrollView(
         padding: EdgeInsets.all(16),
         child: Card(
@@ -35,59 +162,36 @@ class _AddUser extends State<AddUser> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: double.infinity,
-                    child: UserTypeDropDown(
-                      onUserTypeSelected: (value) {
-                        setState(() {
-                          _userType = value ?? 'Semester 1';
-                        });
-                      },
-                    ),
-                  ),
-                  SizedBox(height: 16),
+                  UserTypeDropDown(onUserTypeSelected: (value) {
+                    setState(() {
+                      _userType = value;
+                    });
+                  }),
+              if (_userType != null) ...[
+                  SizedBox(height: 20,),
                   _buildTextField(_nameController, "Name", Icons.person),
                   _buildTextField(_ageController, "Age", LucideIcons.calendarHeart, TextInputType.number),
                   _buildTextField(_contactController, "Contact", Icons.phone, TextInputType.phone),
                   _buildTextField(_addressController, "Address", Icons.home),
+                  if (_userType == "Care Taker" || _userType == "Admin")
+                    _buildTextField(_emailController, "Email", Icons.email, TextInputType.emailAddress),
+                  if (_userType == "Care Taker")
+                    _buildTextField(_caretakerIdController, "Caretaker ID", Icons.badge),
+                  if (_userType == "Admin")
+                    _buildTextField(_adminIdController, "Admin ID", Icons.admin_panel_settings),
                   if (_userType == "Patient") ...[
                     _buildTextField(_conditionController, "Condition", Icons.local_hospital),
                     _buildMedicinesSection(),
-                    SizedBox(height: 10),
-                    _buildTextField(_caretakerController, "Caretaker", Icons.supervisor_account),
+                    _buildTextField(_caretakerIdController, "Caretaker ID", Icons.badge),
                   ],
                   SizedBox(height: 20),
                   Center(
                     child: ElevatedButton(
-                      onPressed: () {
-                        if (_formKey.currentState!.validate()) {
-                          if (_userType == "Patient") {
-                            Map<String, dynamic> newPatient = {
-                              "Name": _nameController.text,
-                              "Age": _ageController.text,
-                              "Contact": _contactController.text,
-                              "Condition": _conditionController.text,
-                              "Medicines": _medicines.map((m) => m['medicine']).toList(),
-                              "Caretaker": _caretakerController.text,
-                            };
-
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => AdminDash(initialPeople: [newPatient]),
-                              ),
-                            );
-                          }
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(horizontal: 40, vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        backgroundColor: Colors.blueAccent
-                      ),
-                      child: Text("Submit", style: TextStyle(fontSize: 18)),
+                      onPressed: _saveUserToFirestore,
+                      child: Text("Submit"),
                     ),
                   ),
+                ],
                 ],
               ),
             ),
@@ -96,6 +200,94 @@ class _AddUser extends State<AddUser> {
       ),
     );
   }
+
+  Widget _buildMedicinesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(height: 10),
+        Text("Medicines", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        ListView.builder(
+          shrinkWrap: true,
+          physics: NeverScrollableScrollPhysics(),
+          itemCount: _medicines.length,
+          itemBuilder: (context, index) {
+            return Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    initialValue: _medicines[index].name,
+                    decoration: InputDecoration(
+                      labelText: "Medicine Name",
+                      prefixIcon: Icon(Icons.medical_services),
+                      filled: true,
+                      fillColor: Colors.grey[200],
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        _medicines[index] = Medicine(
+                          name: value,
+                          time: _medicines[index].time,
+                        );
+                      });
+                    },
+                    validator: (value) => value == null || value.isEmpty ? "Enter Medicine Name" : null,
+                  ),
+                ),
+                SizedBox(width: 10),
+                Expanded(
+                  child: InkWell(
+                    onTap: () async {
+                      TimeOfDay? pickedTime = await showTimePicker(
+                        context: context,
+                        initialTime: TimeOfDay.now(),
+                      );
+                      if (pickedTime != null) {
+                        setState(() {
+                          _medicines[index] = Medicine(
+                            name: _medicines[index].name,
+                            time: pickedTime.format(context),
+                          );
+                        });
+                      }
+                    },
+                    child: Container(
+                      padding: EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey),
+                      ),
+                      child: Text(
+                        _medicines[index].time.isEmpty ? "Select Time" : _medicines[index].time,
+                        style: TextStyle(fontSize: 16),
+                      ),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.delete, color: Colors.red),
+                  onPressed: () => setState(() => _medicines.removeAt(index)),
+                ),
+              ],
+            );
+          },
+        ),
+        SizedBox(height: 10),
+        Center(
+          child: ElevatedButton.icon(
+            onPressed: () => setState(() => _medicines.add(Medicine(name: "", time: ""))),
+            icon: Icon(Icons.add, color: Colors.white),
+            label: Text("Add Medicine"),
+            style: ButtonStyle(backgroundColor: MaterialStateProperty.all(Colors.blueAccent)),
+          ),
+        ),
+      ],
+    );
+  }
+
+
 
   Widget _buildTextField(TextEditingController controller, String label, IconData icon, [TextInputType type = TextInputType.text]) {
     return Padding(
@@ -115,76 +307,6 @@ class _AddUser extends State<AddUser> {
         ),
         validator: (value) => value == null || value.isEmpty ? "Please enter $label" : null,
       ),
-    );
-  }
-
-  Widget _buildMedicinesSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(height: 10),
-        Text("Medicines", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        ListView.builder(
-          shrinkWrap: true,
-          physics: NeverScrollableScrollPhysics(),
-          itemCount: _medicines.length,
-          itemBuilder: (context, index) {
-            return Row(
-              children: [
-                Expanded(
-                  child: _buildTextField(
-                    TextEditingController(text: _medicines[index]['medicine']),
-                    "Medicine Name",
-                    Icons.medical_services,
-                  ),
-                ),
-                SizedBox(width: 10),
-                Expanded(
-                  child: InkWell(
-                    onTap: () async {
-                      TimeOfDay? pickedTime = await showTimePicker(
-                        context: context,
-                        initialTime: TimeOfDay.now(),
-                      );
-                      if (pickedTime != null) {
-                        setState(() {
-                          _medicines[index]['time'] = pickedTime.format(context);
-                        });
-                      }
-                    },
-                    child: Container(
-                      padding: EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey),
-                      ),
-                      child: Text(
-                        _medicines[index]['time']!.isEmpty ? "Select Time" : _medicines[index]['time']!,
-                        style: TextStyle(fontSize: 16),
-                      ),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  icon: Icon(Icons.delete, color: Colors.red),
-                  onPressed: () => setState(() => _medicines.removeAt(index)),
-                ),
-              ],
-            );
-          },
-        ),
-        SizedBox(height: 10),
-        Center(
-          child: ElevatedButton.icon(
-            onPressed: () => setState(() => _medicines.add({"medicine": "", "time": ""})),
-            icon: Icon(Icons.add, color: Colors.white,),
-            label: Text("Add Medicine"),
-            style: ButtonStyle(backgroundColor: MaterialStateProperty.all(Colors.blueAccent),)
-
-          ),
-        ),
-      ],
     );
   }
 }

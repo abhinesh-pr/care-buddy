@@ -1,11 +1,12 @@
-import 'package:carebuddy/views/admin/add_user.dart';
-import 'package:carebuddy/views/admin/caretaker.dart';
+import 'package:carebud/views/admin/add_user.dart';
+import 'package:carebud/views/admin/caretaker.dart';
 import 'package:flutter/material.dart';
 import 'package:stylish_bottom_bar/stylish_bottom_bar.dart';
 
 import 'admin_dashboard.dart';
 
 class AdminNavBar extends StatefulWidget {
+  static final GlobalKey<_AdminNavBarState> adminNavKey = GlobalKey();
 
   final List<Map<String, dynamic>>? initialPeople;
 

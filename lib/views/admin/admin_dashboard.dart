@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AdminDash extends StatefulWidget {
-  final List<Map<String, dynamic>>? initialPeople;
-
-  const AdminDash( {super.key, this.initialPeople});
+  const AdminDash({super.key});
 
   @override
   _AdminDash createState() => _AdminDash();
@@ -11,97 +10,41 @@ class AdminDash extends StatefulWidget {
 
 class _AdminDash extends State<AdminDash> {
   TextEditingController searchController = TextEditingController();
-  List<Map<String, dynamic>> people = [
-    {
-      "Name": "John Doe",
-      "Age": "65",
-      "Contact": "9876543210",
-      "Condition": "Diabetes, High BP",
-      "Medicines": ["Metformin", "Amlodipine", "Atorvastatin"],
-      "Caretaker": "Alice"
-    },
-    {
-      "Name": "Mary Smith",
-      "Age": "72",
-      "Contact": "9865321470",
-      "Condition": "Asthma",
-      "Medicines": ["Salbutamol", "Budesonide"],
-      "Caretaker": "Bob"
-    },
-    {
-      "Name": "Robert Brown",
-      "Age": "80",
-      "Contact": "9854123670",
-      "Condition": "Arthritis",
-      "Medicines": ["Ibuprofen", "Paracetamol"],
-      "Caretaker": "Charlie"
-    },
-    {
-      "Name": "Emily Davis",
-      "Age": "69",
-      "Contact": "9845632170",
-      "Condition": "Hypertension",
-      "Medicines": ["Lisinopril", "Hydrochlorothiazide"],
-      "Caretaker": "David"
-    },
-    {
-      "Name": "William Johnson",
-      "Age": "75",
-      "Contact": "9832145760",
-      "Condition": "Chronic Kidney Disease",
-      "Medicines": ["Erythropoietin", "Calcium Acetate"],
-      "Caretaker": "Emma"
-    },
-    {
-      "Name": "Sophia Wilson",
-      "Age": "78",
-      "Contact": "9823651470",
-      "Condition": "Osteoporosis",
-      "Medicines": ["Alendronate", "Calcitonin"],
-      "Caretaker": "Frank"
-    },
-    {
-      "Name": "Michael Lee",
-      "Age": "82",
-      "Contact": "9812475630",
-      "Condition": "Heart Disease",
-      "Medicines": ["Aspirin", "Metoprolol", "Simvastatin"],
-      "Caretaker": "Grace"
-    },
-    {
-      "Name": "Olivia Martin",
-      "Age": "67",
-      "Contact": "9803124750",
-      "Condition": "Parkinson’s Disease",
-      "Medicines": ["Levodopa", "Carbidopa"],
-      "Caretaker": "Hannah"
-    },
-    {
-      "Name": "Daniel Thomas",
-      "Age": "74",
-      "Contact": "9798562140",
-      "Condition": "Alzheimer’s Disease",
-      "Medicines": ["Donepezil", "Memantine"],
-      "Caretaker": "Isabella"
-    },
-  ];
-  List<Map<String, dynamic>> filteredPeople = [];
-
-  @override
-  void initState() {
-    super.initState();
-    people = widget.initialPeople != null ? [...people, ...widget.initialPeople!] : people;
-    filteredPeople = List.from(people);
-  }
-
 
   void updateSearch(String query) {
-    setState(() {
-      filteredPeople = people
-          .where((person) => person["Name"]!.toLowerCase().contains(query.toLowerCase()))
-          .toList();
-    });
+    setState(() {});
   }
+
+  Stream<List<Map<String, dynamic>>> fetchPatients() async* {
+    List<Map<String, dynamic>> allPatients = [];
+
+    QuerySnapshot caretakerSnapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .where('userType', isEqualTo: 'Care Taker')
+        .get();
+
+    for (var caretakerDoc in caretakerSnapshot.docs) {
+      String caretakerId = caretakerDoc.id;
+      String caretakerName = caretakerDoc['name']; // Fetch caretaker name
+
+      QuerySnapshot patientSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(caretakerId)
+          .collection('patients')
+          .get();
+
+      for (var patientDoc in patientSnapshot.docs) {
+        Map<String, dynamic> patientData =
+        patientDoc.data() as Map<String, dynamic>;
+        patientData['caretakerId'] = caretakerId;
+        patientData['caretakerName'] = caretakerName; // Add caretaker name
+        allPatients.add(patientData);
+      }
+    }
+
+    yield allPatients;
+  }
+
 
   void _showPersonDetails(BuildContext context, Map<String, dynamic> person) {
     showModalBottomSheet(
@@ -121,8 +64,8 @@ class _AdminDash extends State<AdminDash> {
             children: [
               Center(
                 child: Text(
-                  'Person Details',
-                  style: TextStyle(
+                  'Patient Details',
+                  style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: Colors.blue,
@@ -130,12 +73,19 @@ class _AdminDash extends State<AdminDash> {
                 ),
               ),
               const SizedBox(height: 10),
-              _infoRow('Name', person['Name']),
-              _infoRow('Age', person['Age'].toString()),
-              _infoRow('Contact', person['Contact']),
-              _infoRow('Medical Condition', person['Condition']),
-              _infoRow('Medicines', person['Medicines'].join(', ')),
-              _infoRow('Caretaker', person['Caretaker']),
+              _infoRow('Name', person['name']),
+              _infoRow('Age', person['age'].toString()),
+              _infoRow('Contact', person['contact']),
+              _infoRow('Medical Condition', person['condition']),
+              _infoRow(
+                'Medicines',
+                person['medicines']
+                    ?.map<String>((m) => '${m['name']} (${m['time']})')
+                    .join(', ') ??
+                    'None',
+              ),
+              _infoRow('Caretaker', person['caretakerName'] ?? 'Unknown'),
+              _infoRow('Caretaker Id', person['caretakerId'] ?? 'None'),
               const SizedBox(height: 20),
               Align(
                 alignment: Alignment.center,
@@ -199,19 +149,40 @@ class _AdminDash extends State<AdminDash> {
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 10),
-                child: GridView.builder(
-                  padding: const EdgeInsets.all(10),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 20,
-                    mainAxisSpacing: 20,
-                    childAspectRatio: 1,
-                  ),
-                  itemCount: filteredPeople.length,
-                  itemBuilder: (context, index) {
-                    return GestureDetector(
-                      onTap: () => _showPersonDetails(context, filteredPeople[index]),
-                      child: PersonCard(data: filteredPeople[index]),
+                child: StreamBuilder<List<Map<String, dynamic>>>(
+                  stream: fetchPatients(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                      return const Center(child: Text("No patients found"));
+                    }
+
+                    List<Map<String, dynamic>> peopleData = snapshot.data!;
+                    List<Map<String, dynamic>> displayedData = searchController.text.isEmpty
+                        ? peopleData
+                        : peopleData.where((person) {
+                      return person["name"]
+                          .toLowerCase()
+                          .contains(searchController.text.toLowerCase());
+                    }).toList();
+
+                    return GridView.builder(
+                      padding: const EdgeInsets.all(10),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 20,
+                        mainAxisSpacing: 20,
+                        childAspectRatio: 1,
+                      ),
+                      itemCount: displayedData.length,
+                      itemBuilder: (context, index) {
+                        return GestureDetector(
+                          onTap: () => _showPersonDetails(context, displayedData[index]),
+                          child: PersonCard(data: displayedData[index]),
+                        );
+                      },
                     );
                   },
                 ),
@@ -224,8 +195,6 @@ class _AdminDash extends State<AdminDash> {
   }
 }
 
-
-
 class PersonCard extends StatelessWidget {
   final Map<String, dynamic> data;
 
@@ -235,7 +204,7 @@ class PersonCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Color(0xFFbde0fe),
+        color: const Color(0xFFbde0fe),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -251,11 +220,12 @@ class PersonCard extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("Name: ${data["Name"]}", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          Text("Name: ${data["name"]}", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 5),
-          Text("Age: ${data["Age"]}", style: const TextStyle(fontSize: 14)),
+          Text("Age: ${data["age"]}", style: const TextStyle(fontSize: 14)),
           const SizedBox(height: 5),
-          Text("Caretaker: ${data["Caretaker"]}", style: const TextStyle(fontSize: 14, fontStyle: FontStyle.italic)),
+          Text("Caretaker: ${data["caretakerName"]}", style: const TextStyle(fontSize: 14)),
+
         ],
       ),
     );
